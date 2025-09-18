@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  # Traffic Sink (Central Server)
+  traffic-sink:
+    build:
+      context: .
+      dockerfile: traffic-sink/Dockerfile
+    ports:
+      - "9090:9090"
+    environment:
+      - LISTEN_ADDRESS=:9090
+    container_name: traffic-sink
+    restart: unless-stopped
+    networks:
+      - nad-network
+
+  # Traffic Pump (Agent) - Only for testing
+  # In production, this runs on each monitored node
+  traffic-pump:
+    build:
+      context: .
+      dockerfile: traffic-pump/Dockerfile
+    environment:
+      - NODE_ID=docker-test-node
+      - SINK_ADDRESS=traffic-sink:9090
+      - BPF_OBJECT=/app/traffic_pump.o
+    depends_on:
+      - traffic-sink
+    privileged: true  # Required for eBPF
+    network_mode: host  # Required to see host network traffic
+    pid: host  # Required to see host processes
+    volumes:
+      - /sys/fs/bpf:/sys/fs/bpf  # BPF filesystem
+    container_name: traffic-pump
+    restart: unless-stopped
+    # Comment out for testing since it needs host network
+    # networks:
+    #   - nad-network
+
+networks:
+  nad-network:
+    driver: bridge

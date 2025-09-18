@@ -1,0 +1,38 @@
+syntax = "proto3";
+
+package traffic;
+
+option go_package = "./proto";
+
+message ConnectionEvent {
+  string node_id = 1;
+  uint64 timestamp = 2;
+  uint32 pid = 3;
+  string process_name = 4;
+  uint32 saddr = 5;
+  uint32 daddr = 6;
+  uint32 sport = 7;
+  uint32 dport = 8;
+  uint32 protocol = 9; 
+}
+
+message ConnectionBatch {
+  repeated ConnectionEvent events = 1;
+}
+
+message ConnectionResponse {
+  string message = 1;
+  string batch_id = 2;
+}
+
+service TrafficService {
+  rpc SendConnectionEvents(stream ConnectionBatch) returns (ConnectionResponse);
+  rpc HealthCheck(HealthRequest) returns (HealthResponse);
+}
+
+message HealthRequest {}
+
+message HealthResponse {
+  string status = 1;
+  string message = 2;
+}
