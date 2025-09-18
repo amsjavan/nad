@@ -37,7 +37,7 @@ traffic-pump/bpf/*.o
 logs/
 sink.log
 pump.log
-traffic-*.log
+traffic-*.logتو 
 debug.log
 error.log
 
