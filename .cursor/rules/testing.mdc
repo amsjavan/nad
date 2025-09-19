@@ -1,0 +1,156 @@
+---
+description: Testing strategies, validation methods, and quality assurance approaches
+alwaysApply: false
+---
+
+# Testing Approaches & Strategies
+
+## Testing Environment Types
+
+### Native Development Testing
+- **Command**: `make dev-start` for local development
+- **Use case**: Fast iteration during development
+- **Requirements**: sudo access, eBPF kernel support
+- **Benefits**: Direct system access, real-time debugging
+
+### Docker Single Node Testing
+- **Command**: `make docker-single`
+- **Setup**: Single pump + single sink
+- **Use case**: Basic functionality testing
+- **Network**: Custom bridge network (172.20.0.0/24)
+- **Benefits**: Isolated environment, easy cleanup
+
+### Docker Multi-Node Testing  
+- **Command**: `make docker-multi`
+- **Setup**: Multiple pumps + single sink + test client
+- **Use case**: Full distributed system testing
+- **Architecture**: 2 pumps + 1 sink + 1 test client
+- **Benefits**: Real multi-node behavior, load testing
+
+### Vagrant VM Testing
+- **Command**: `make vagrant-up`
+- **Setup**: VM-based multi-node environment
+- **Use case**: Realistic multi-node scenarios with separate kernels
+- **Architecture**: 3 VMs (sink VM + 2 pump VMs)
+- **Benefits**: True isolation, production-like environment
+
+## Test Traffic Generation
+
+### Manual Traffic Generation
+```bash
+# DNS queries
+nslookup google.com
+
+# HTTP requests  
+curl google.com
+curl localhost:9090
+
+# TCP connections
+nc -z hostname port
+
+# Generate multiple connections
+for i in {1..10}; do curl -s google.com > /dev/null; done
+```
+
+### Automated Test Scripts
+- Use test client containers for consistent traffic
+- Generate various connection types (connect, accept)
+- Test both successful and failed connections
+- Simulate high-volume scenarios
+
+## Integration Testing Scenarios
+
+### Must-Test Scenarios
+1. **Process name capture accuracy**
+   - Various process types (browser, curl, nc, etc.)
+   - Long process names
+   - Special characters in process names
+
+2. **IP address extraction** (IPv4 only currently)
+   - Localhost connections (127.0.0.1)
+   - LAN connections (192.168.x.x)
+   - Internet connections (public IPs)
+   - DNS resolution traffic
+
+3. **Port number extraction**
+   - Source port detection (ephemeral ports)
+   - Destination port detection (known services)
+   - Port number conversion (network to host order)
+
+4. **Multi-node communication**
+   - Multiple pumps sending to single sink
+   - Node ID differentiation
+   - Connection routing and load balancing
+
+5. **Container-to-container networking**
+   - Docker bridge network communication
+   - Custom network configurations
+   - Inter-container service discovery
+
+6. **Real network traffic validation**
+   - curl, nc, ping traffic
+   - Browser connections
+   - System service connections (DNS, etc.)
+
+7. **gRPC stream handling**
+   - Stream connection/reconnection
+   - Batch processing
+   - Error handling and recovery
+
+## Performance Testing
+
+### Load Testing
+- Generate high-volume network connections
+- Monitor memory usage and CPU consumption
+- Test event batching efficiency
+- Measure gRPC throughput
+
+### Stress Testing
+- Run for extended periods
+- Monitor for memory leaks
+- Test resource cleanup
+- Validate system stability
+
+## Validation Methods
+
+### Log Analysis
+- Check structured log format with emojis
+- Verify timestamp accuracy
+- Validate IP/port conversion
+- Confirm process name extraction
+
+### Metrics Monitoring
+- Event processing rate
+- gRPC connection health
+- eBPF program statistics
+- System resource usage
+
+### Data Integrity
+- Compare captured events with expected traffic
+- Validate syscall type detection
+- Check network byte order handling
+- Verify multi-node data correlation
+
+## Testing Workflow
+
+### Pre-deployment Testing
+1. Run native tests first (`make dev-start`)
+2. Test Docker single node (`make docker-single`)
+3. Validate Docker multi-node (`make docker-multi`)
+4. Final validation with Vagrant if needed
+
+### Continuous Testing
+- Test after every major code change
+- Validate eBPF program modifications immediately
+- Test protobuf schema changes thoroughly
+- Verify Docker image builds before deployment
+
+### Testing Checklist
+- [ ] eBPF program loads without errors
+- [ ] Process names captured correctly
+- [ ] IP addresses extracted properly
+- [ ] Port numbers converted correctly
+- [ ] Multi-node communication works
+- [ ] gRPC streaming functions properly
+- [ ] Docker containers start successfully
+- [ ] Log format is correct and readable

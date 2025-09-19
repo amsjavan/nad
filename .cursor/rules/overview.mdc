@@ -1,0 +1,67 @@
+---
+description: NAD project overview, architecture, components, and directory structure
+alwaysApply: false
+---
+
+# NAD (Network Activity Detector) - Project Overview
+
+## Project Description
+NAD is an eBPF-based network monitoring system designed for real-time network activity detection and logging.
+
+### Core Components
+- **`traffic-pump`**: eBPF agent that captures network events from kernel syscalls
+- **`traffic-sink`**: gRPC server that receives and processes network events  
+- **Real-time monitoring**: TCP connections with PID, process name, IP addresses, and ports
+- **Multi-node deployment**: Support via Docker/Vagrant for distributed monitoring
+
+## Architecture & Technology Stack
+
+### Backend Technologies
+- **eBPF**: Kernel-space network event capture (C code)
+- **Go (Golang)**: User-space applications (traffic-pump, traffic-sink)
+- **Protocol Buffers**: Data serialization and gRPC service definitions
+- **gRPC**: Streaming communication between pump and sink
+
+### Deployment Technologies
+- **Docker**: Containerized deployment with multi-stage builds
+- **Vagrant**: VM-based multi-node testing environment
+- **Make**: Build automation and task management
+
+## Directory Structure
+
+```
+nad/
+├── deploy/
+│   ├── docker/docker-compose.yml    # Unified Docker configuration
+│   └── vagrant/Vagrantfile          # VM-based testing environment
+├── traffic-pump/                    # eBPF agent component
+│   ├── bpf/traffic_pump.c          # eBPF kernel program
+│   ├── main.go                     # Go userspace program
+│   └── Dockerfile                  # Container definition
+├── traffic-sink/                   # gRPC server component
+│   ├── main.go                     # gRPC server implementation
+│   └── Dockerfile                  # Container definition
+├── proto/traffic.proto             # Protocol buffer definitions
+├── .cursor/rules/                  # Cursor AI development rules
+├── Makefile                        # Build automation
+└── README.md                       # Project documentation
+```
+
+## Data Flow Architecture
+
+1. **Kernel Events**: eBPF programs attach to syscalls and capture network events
+2. **Ring Buffer**: Events transferred from kernel to userspace via ring buffer
+3. **Event Processing**: Go userspace program processes and batches events
+4. **gRPC Streaming**: Batched events sent to sink via streaming gRPC
+5. **Logging**: Sink server logs formatted network activity with emojis
+6. **Multi-node**: Multiple pumps can send to single sink for centralized monitoring
+
+## Key Features
+
+- **Real-time Network Monitoring**: Capture TCP connections as they happen
+- **Process Context**: Include PID and process names for each connection  
+- **IP/Port Detection**: Extract source/destination IPs and ports
+- **Syscall Coverage**: Monitor connect, accept, accept4, and tcp_v4_connect
+- **Multi-node Support**: Distributed agents reporting to central server
+- **Docker Ready**: Containerized deployment with proper eBPF permissions
+- **Development Friendly**: Comprehensive Makefile automation

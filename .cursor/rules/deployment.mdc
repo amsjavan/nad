@@ -1,0 +1,205 @@
+---
+description: Deployment strategies, Docker/Kubernetes configurations, and production guidelines
+alwaysApply: false
+---
+
+# Deployment Patterns & Configurations
+
+## Deployment Strategies
+
+### Development Deployment
+- **Pattern**: Native Go execution with sudo
+- **Command**: `make dev-start`
+- **Use case**: Fast iteration during development
+- **Requirements**: Local Go installation, eBPF kernel support
+- **Benefits**: Direct debugging, immediate feedback
+
+### Testing Deployment
+- **Pattern**: Docker Compose with profiles (single/multi)
+- **Commands**: `make docker-single` or `make docker-multi`
+- **Use case**: Controlled testing environment
+- **Benefits**: Isolated networking, easy cleanup, reproducible
+
+### Production Deployment
+- **Pattern**: Kubernetes with proper RBAC and security contexts
+- **Requirements**: Kubernetes cluster with eBPF support
+- **Considerations**: Security policies, resource limits, monitoring
+
+### Scaling Deployment
+- **Pattern**: Multiple pumps to single sink architecture
+- **Benefits**: Distributed collection, centralized processing
+- **Considerations**: Load balancing, fault tolerance
+
+## Docker Configuration Guidelines
+
+### Container Requirements
+
+#### Traffic Pump Containers
+```yaml
+privileged: true              # Required for eBPF
+pid: "host"                  # Required to see host processes
+volumes:
+  - /sys/fs/bpf:/sys/fs/bpf:rw
+  - /sys/kernel/debug:/sys/kernel/debug:ro  
+  - /sys/kernel/tracing:/sys/kernel/tracing:ro
+```
+
+#### Traffic Sink Containers
+```yaml
+ports:
+  - "9090:9090"              # gRPC service port
+healthcheck:
+  test: ["CMD", "nc", "-z", "localhost", "9090"]
+  interval: 10s
+  timeout: 5s
+  retries: 3
+```
+
+### Network Configuration
+- **Custom bridge networks**: Use dedicated network (172.20.0.0/24)
+- **Static IP assignment**: Ensure predictable networking
+- **Service discovery**: Use container names for internal communication
+
+### Docker Compose Profiles
+- **Single**: Basic testing with one pump and one sink
+- **Multi**: Full testing with multiple pumps, sink, and test client
+- **Default**: Single profile for simple deployments
+
+## Kubernetes Deployment
+
+### Security Context
+```yaml
+securityContext:
+  privileged: true
+  capabilities:
+    add:
+      - CAP_BPF
+      - CAP_NET_RAW
+```
+
+### Resource Management
+```yaml
+resources:
+  requests:
+    memory: "256Mi"
+    cpu: "100m"
+  limits:
+    memory: "512Mi"
+    cpu: "200m"
+```
+
+### Volume Mounts
+```yaml
+volumeMounts:
+  - name: bpf-fs
+    mountPath: /sys/fs/bpf
+  - name: debug-fs  
+    mountPath: /sys/kernel/debug
+    readOnly: true
+  - name: tracing-fs
+    mountPath: /sys/kernel/tracing
+    readOnly: true
+```
+
+## Multi-Node Architecture
+
+### Centralized Logging Architecture
+```
+┌─────────────┐    ┌─────────────┐    ┌─────────────┐
+│   Node 1    │    │   Node 2    │    │   Node N    │
+│ traffic-pump│    │ traffic-pump│    │ traffic-pump│
+└─────┬───────┘    └─────┬───────┘    └─────┬───────┘
+      │                  │                  │
+      └──────────────────┼──────────────────┘
+                         │
+                ┌────────▼────────┐
+                │  Central Sink   │
+                │  traffic-sink   │
+                └─────────────────┘
+```
+
+### Node Identification
+- Each pump must have unique `NODE_ID` environment variable
+- Node ID included in all events for tracking
+- Centralized sink differentiates events by node
+
+### Load Balancing Considerations
+- Single sink can handle multiple pumps
+- Consider sink scaling for high-volume environments
+- Implement health checks for automatic failover
+
+## Performance Configurations
+
+### Event Batching
+- **Default batch size**: 50 events per gRPC call
+- **Configurable**: Adjust based on network latency and volume
+- **Trade-off**: Larger batches reduce overhead but increase latency
+
+### Ring Buffer Configuration
+- **Default size**: 256KB
+- **Tuning**: Increase for high-volume scenarios
+- **Monitoring**: Check for dropped events
+
+### Resource Allocation
+- **Memory**: Monitor for leaks in long-running deployments
+- **CPU**: eBPF programs are generally low-overhead
+- **Network**: Consider bandwidth for multi-node setups
+
+## Security Guidelines
+
+### Container Security
+- Use non-root users where possible (except for eBPF requirements)
+- Implement resource limits to prevent DoS
+- Regular security updates for base images
+
+### Network Security
+- Use TLS for gRPC communication in production
+- Implement proper firewall rules
+- Consider network segmentation for isolation
+
+### Data Security
+- Sanitize process names (null-terminate properly)
+- Validate all user input in sink server
+- Consider rate limiting for production deployments
+
+### Capability Management
+- Use minimal required capabilities (CAP_BPF, CAP_NET_RAW)
+- Avoid full privileged mode in production if possible
+- Implement proper RBAC in Kubernetes
+
+## Monitoring & Observability
+
+### Metrics Collection
+- Monitor eBPF program statistics
+- Track gRPC connection health
+- Log syscall success rates and errors
+- Resource utilization monitoring
+
+### Logging Strategy
+- Structured logs with timestamps
+- Include node IDs for multi-node tracking
+- Use emojis for visual log parsing
+- Centralized log aggregation
+
+### Health Checks
+- gRPC service health endpoints
+- eBPF program attachment status
+- Ring buffer utilization metrics
+- Container health checks
+
+## Future Production Considerations
+
+### Scalability
+- Horizontal scaling of sink servers
+- Load balancing between multiple sinks
+- Database integration for historical data
+
+### High Availability
+- Sink server redundancy
+- Automatic failover mechanisms
+- Data persistence and recovery
+
+### Integration
+- Metrics and alerting integration (Prometheus/Grafana)
+- SIEM integration for security monitoring
+- API endpoints for external system integration

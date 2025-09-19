@@ -1,0 +1,183 @@
+---
+description: Quick command reference, conventions, and future development roadmap
+alwaysApply: false
+---
+
+# Quick Reference & Future Roadmap
+
+## Quick Command Reference
+
+### Development Commands
+```bash
+make help                    # Show all available commands with descriptions
+make build                   # Build everything (eBPF + Go applications)
+make clean                   # Clean build artifacts and temporary files
+make proto                   # Generate protobuf files (.pb.go)
+make build-bpf              # Compile eBPF program only (.o file)
+```
+
+### Native Development Environment
+```bash
+make dev-start              # Start both pump and sink natively
+make dev-logs               # View development logs (tail -f)
+make dev-stop               # Stop native development services
+make dev-pump               # Start only pump service
+make dev-sink               # Start only sink service
+```
+
+### Docker Environment
+```bash
+make docker-build           # Build all Docker images
+make docker-single          # Run single-node setup (1 pump + 1 sink)
+make docker-multi           # Run multi-node setup (2 pumps + 1 sink + test client)
+make docker-logs            # View all Docker container logs
+make docker-stop            # Stop and remove all Docker containers
+make docker-clean           # Clean Docker resources (containers, networks, images)
+make docker-save            # Save Docker images as .tar files
+```
+
+### Vagrant VM Environment
+```bash
+make vagrant-up             # Start all Vagrant VMs (sink + 2 pumps)
+make vagrant-test           # Run full Vagrant test suite
+make vagrant-logs           # View aggregated logs from all VMs
+make vagrant-status         # Check status of all VMs
+make vagrant-destroy        # Destroy all Vagrant VMs and cleanup
+```
+
+## File Naming Conventions
+
+### Source Code Files
+- **eBPF files**: `*.c` in `bpf/` directory
+- **Go main files**: `main.go` in component directories  
+- **Docker files**: `Dockerfile` in component directories
+- **Protocol files**: `*.proto` in `proto/` directory
+
+### Configuration Files
+- **Docker configs**: In `deploy/docker/` directory
+- **Vagrant configs**: In `deploy/vagrant/` directory
+- **Build scripts**: In component root directories
+
+### Generated/Build Artifacts (Ignored)
+- **eBPF objects**: `*.o` files
+- **Go binaries**: Component name (e.g., `traffic-pump`, `traffic-sink`)
+- **Docker images**: `*-image.tar` files
+- **Log files**: `*.log` files
+- **Temporary files**: `*.pid`, `*.sock` files
+
+## Git Workflow Guidelines
+
+### Commit Message Format
+- Use descriptive commit messages with emojis
+- Include component affected: `[pump]`, `[sink]`, `[docker]`, `[docs]`
+- Examples:
+  - `🚀 [pump] Add IPv6 support to eBPF program`
+  - `🐛 [sink] Fix gRPC stream reconnection logic`
+  - `📝 [docs] Update deployment guide for Kubernetes`
+
+### Branch Strategy
+- `master`: Stable, tested code
+- `develop`: Integration branch for features
+- `feature/*`: Individual feature development
+- `hotfix/*`: Emergency production fixes
+
+### Testing Before Commit
+```bash
+make clean && make build     # Clean build test
+make dev-start               # Native functionality test  
+make docker-single           # Docker integration test
+```
+
+## Performance Benchmarks
+
+### Expected Performance
+- **Event processing**: 1000+ events/second per pump
+- **Memory usage**: <100MB per component under normal load
+- **CPU usage**: <5% per component on modern systems
+- **Network latency**: <10ms for local gRPC calls
+
+### Optimization Targets
+- **Batch size tuning**: 50-200 events per batch
+- **Ring buffer efficiency**: >99% utilization without drops
+- **gRPC throughput**: Sustained streaming with minimal backpressure
+
+## Future Improvements Roadmap
+
+### Short-term Enhancements
+- **IPv6 support**: Extend eBPF programs for IPv6 connections
+- **UDP protocol monitoring**: Add UDP syscall capture
+- **Enhanced logging**: JSON structured logging option
+- **Metrics endpoint**: Prometheus metrics integration
+
+### Medium-term Features
+- **Process tree information**: Parent/child process relationships
+- **Network namespace awareness**: Container-aware networking
+- **SSL/TLS detection**: Identify encrypted connections
+- **Connection state tracking**: Track connection lifecycle
+
+### Long-term Vision
+- **Kubernetes native deployment**: Helm charts and operators
+- **Machine learning integration**: Anomaly detection capabilities
+- **Historical data analysis**: Database storage and querying
+- **Web dashboard**: Real-time monitoring interface
+- **Multi-protocol support**: HTTP, DNS, custom protocols
+- **Advanced filtering**: Rule-based event filtering
+- **Alert system**: Integration with alerting platforms
+
+### Platform Expansions
+- **Windows support**: Adapt for Windows kernel events
+- **macOS support**: Use macOS kernel frameworks
+- **Cloud integration**: AWS/GCP/Azure native deployments
+- **Edge computing**: Lightweight deployments for IoT
+
+## Integration Examples
+
+### Prometheus Integration
+```yaml
+# Example metrics endpoint
+/metrics:
+  - nad_events_processed_total
+  - nad_connections_active
+  - nad_grpc_connections_total  
+  - nad_ebpf_program_status
+```
+
+### ELK Stack Integration
+```json
+{
+  "@timestamp": "2025-01-01T12:00:00Z",
+  "node_id": "nad-pump1",
+  "process_name": "curl",
+  "pid": 12345,
+  "source_ip": "192.168.1.100",
+  "dest_ip": "8.8.8.8",
+  "dest_port": 443,
+  "protocol": "TCP",
+  "syscall": "connect"
+}
+```
+
+### SIEM Integration
+- **Splunk**: Custom log format and forwarding
+- **IBM QRadar**: Network event correlation
+- **Azure Sentinel**: Cloud-native security monitoring
+
+## Documentation Maintenance
+
+### Keep Updated
+- This `.cursor/rules/` documentation as project evolves
+- README.md with current deployment instructions
+- Makefile help text for new commands
+- Dockerfile comments for any changes
+
+### Validation Process
+- Test all documented commands regularly
+- Verify examples work with current codebase
+- Update version references in documentation
+- Maintain accuracy of troubleshooting guides
+
+### Community Contributions
+- Clear contributing guidelines
+- Code style enforcement
+- Comprehensive testing requirements
+- Documentation updates with code changes

@@ -1,0 +1,450 @@
+---
+description: Build process, Makefile automation, Docker builds, and compilation guidelines
+alwaysApply: false
+---
+
+# Build Process & Automation
+
+## Build Process Overview
+
+### eBPF Compilation
+1. **eBPF compilation**: `clang -target bpf -O2 -g -c traffic_pump.c`
+2. **Go compilation**: Standard `go build` with proper flags
+3. **Use Makefile targets**: `make build`, `make dev-start`, `make docker-build`
+4. **Pre-build eBPF** before Docker to avoid Alpine compatibility issues
+
+### Build Dependencies
+- **clang**: For eBPF compilation
+- **protobuf-compiler**: For protobuf generation
+- **Go 1.21+**: For application compilation
+- **Docker**: For containerized builds
+
+## Makefile Usage
+
+### Development Commands
+```bash
+make help                    # Show all available commands
+make build                   # Build everything (eBPF + Go)
+make clean                   # Clean build artifacts
+make proto                   # Generate protobuf files
+make build-bpf              # Compile eBPF program only
+```
+
+### Development Environment
+```bash
+make dev-start              # Start development environment (native)
+make dev-logs               # View development logs
+make dev-stop               # Stop development environment
+```
+
+### Docker Commands
+```bash
+make docker-build           # Build Docker images
+make docker-single          # Run single-node Docker setup
+make docker-multi           # Run multi-node Docker setup  
+make docker-logs            # View Docker logs
+make docker-stop            # Stop Docker containers
+make docker-clean           # Clean Docker resources
+```
+
+### Vagrant Commands
+```bash
+make vagrant-up             # Start Vagrant VMs
+make vagrant-test           # Test Vagrant setup
+make vagrant-logs           # View Vagrant logs
+make vagrant-status         # Check VM status
+make vagrant-destroy        # Destroy Vagrant VMs
+```
+
+## Docker Build Guidelines
+
+### Multi-stage Builds
+- Use `golang:1.21-alpine` for building stage
+- Use `alpine:latest` for runtime stage
+- Copy pre-built eBPF objects, don't compile in container
+- Include proper health checks
+
+### eBPF Requirements
+For traffic-pump containers:
+- Use `--privileged` flag (required for eBPF)
+- Use `--pid=host` to see host processes
+- Mount essential directories:
+  - `/sys/fs/bpf:/sys/fs/bpf:rw`
+  - `/sys/kernel/debug:/sys/kernel/debug:ro`
+  - `/sys/kernel/tracing:/sys/kernel/tracing:ro`
+
+### Network Configuration
+- Use custom bridge networks (172.20.0.0/24)
+- Assign static IPs for predictable networking
+- Configure proper DNS resolution
+
+## Development Workflow
+
+### Before Major Changes
+1. Always run `make clean` before major changes
+2. Test with `make dev-start` before Docker deployment
+3. Use `make help` to see available commands
+4. Check logs with `make dev-logs` or `docker-compose logs`
+
+### Build Order
+1. **Protocol Buffers**: Generate `.pb.go` files first
+2. **eBPF Program**: Compile C code to `.o` object
+3. **Go Applications**: Build traffic-pump and traffic-sink
+4. **Docker Images**: Build containers with pre-compiled artifacts
+
+### Validation Steps
+- Validate struct alignment with `unsafe.Sizeof()`
+- Test eBPF program attachment
+- Verify gRPC connectivity
+- Check protobuf serialization/deserialization
+
+## Common Build Issues
+
+### eBPF Compilation
+- **"Program too large"**: Reduce complexity, use static inline functions
+- **"Invalid argument"**: Check struct alignment and BTF compatibility
+- **Missing headers**: Use minimal header approach
+
+### Go Build Issues
+- **Protobuf version conflicts**: Pin versions in go.mod
+- **gRPC compatibility**: Use compatible versions (check go.sum)
+- **Struct alignment errors**: Validate with `unsafe.Sizeof()`
+
+### Docker Build Failures
+- **eBPF compilation in Alpine**: Pre-compile on host, copy to container
+- **Permission issues**: Ensure proper user permissions in container
+- **Missing dependencies**: Install all required packages in Dockerfile
+# Build Process & Automation
+
+## Build Process Overview
+
+### eBPF Compilation
+1. **eBPF compilation**: `clang -target bpf -O2 -g -c traffic_pump.c`
+2. **Go compilation**: Standard `go build` with proper flags
+3. **Use Makefile targets**: `make build`, `make dev-start`, `make docker-build`
+4. **Pre-build eBPF** before Docker to avoid Alpine compatibility issues
+
+### Build Dependencies
+- **clang**: For eBPF compilation
+- **protobuf-compiler**: For protobuf generation
+- **Go 1.21+**: For application compilation
+- **Docker**: For containerized builds
+
+## Makefile Usage
+
+### Development Commands
+```bash
+make help                    # Show all available commands
+make build                   # Build everything (eBPF + Go)
+make clean                   # Clean build artifacts
+make proto                   # Generate protobuf files
+make build-bpf              # Compile eBPF program only
+```
+
+### Development Environment
+```bash
+make dev-start              # Start development environment (native)
+make dev-logs               # View development logs
+make dev-stop               # Stop development environment
+```
+
+### Docker Commands
+```bash
+make docker-build           # Build Docker images
+make docker-single          # Run single-node Docker setup
+make docker-multi           # Run multi-node Docker setup  
+make docker-logs            # View Docker logs
+make docker-stop            # Stop Docker containers
+make docker-clean           # Clean Docker resources
+```
+
+### Vagrant Commands
+```bash
+make vagrant-up             # Start Vagrant VMs
+make vagrant-test           # Test Vagrant setup
+make vagrant-logs           # View Vagrant logs
+make vagrant-status         # Check VM status
+make vagrant-destroy        # Destroy Vagrant VMs
+```
+
+## Docker Build Guidelines
+
+### Multi-stage Builds
+- Use `golang:1.21-alpine` for building stage
+- Use `alpine:latest` for runtime stage
+- Copy pre-built eBPF objects, don't compile in container
+- Include proper health checks
+
+### eBPF Requirements
+For traffic-pump containers:
+- Use `--privileged` flag (required for eBPF)
+- Use `--pid=host` to see host processes
+- Mount essential directories:
+  - `/sys/fs/bpf:/sys/fs/bpf:rw`
+  - `/sys/kernel/debug:/sys/kernel/debug:ro`
+  - `/sys/kernel/tracing:/sys/kernel/tracing:ro`
+
+### Network Configuration
+- Use custom bridge networks (172.20.0.0/24)
+- Assign static IPs for predictable networking
+- Configure proper DNS resolution
+
+## Development Workflow
+
+### Before Major Changes
+1. Always run `make clean` before major changes
+2. Test with `make dev-start` before Docker deployment
+3. Use `make help` to see available commands
+4. Check logs with `make dev-logs` or `docker-compose logs`
+
+### Build Order
+1. **Protocol Buffers**: Generate `.pb.go` files first
+2. **eBPF Program**: Compile C code to `.o` object
+3. **Go Applications**: Build traffic-pump and traffic-sink
+4. **Docker Images**: Build containers with pre-compiled artifacts
+
+### Validation Steps
+- Validate struct alignment with `unsafe.Sizeof()`
+- Test eBPF program attachment
+- Verify gRPC connectivity
+- Check protobuf serialization/deserialization
+
+## Common Build Issues
+
+### eBPF Compilation
+- **"Program too large"**: Reduce complexity, use static inline functions
+- **"Invalid argument"**: Check struct alignment and BTF compatibility
+- **Missing headers**: Use minimal header approach
+
+### Go Build Issues
+- **Protobuf version conflicts**: Pin versions in go.mod
+- **gRPC compatibility**: Use compatible versions (check go.sum)
+- **Struct alignment errors**: Validate with `unsafe.Sizeof()`
+
+### Docker Build Failures
+- **eBPF compilation in Alpine**: Pre-compile on host, copy to container
+- **Permission issues**: Ensure proper user permissions in container
+- **Missing dependencies**: Install all required packages in Dockerfile
+ اضافه کن 
+# Build Process & Automation
+
+## Build Process Overview
+
+### eBPF Compilation
+1. **eBPF compilation**: `clang -target bpf -O2 -g -c traffic_pump.c`
+2. **Go compilation**: Standard `go build` with proper flags
+3. **Use Makefile targets**: `make build`, `make dev-start`, `make docker-build`
+4. **Pre-build eBPF** before Docker to avoid Alpine compatibility issues
+
+### Build Dependencies
+- **clang**: For eBPF compilation
+- **protobuf-compiler**: For protobuf generation
+- **Go 1.21+**: For application compilation
+- **Docker**: For containerized builds
+
+## Makefile Usage
+
+### Development Commands
+```bash
+make help                    # Show all available commands
+make build                   # Build everything (eBPF + Go)
+make clean                   # Clean build artifacts
+make proto                   # Generate protobuf files
+make build-bpf              # Compile eBPF program only
+```
+
+### Development Environment
+```bash
+make dev-start              # Start development environment (native)
+make dev-logs               # View development logs
+make dev-stop               # Stop development environment
+```
+
+### Docker Commands
+```bash
+make docker-build           # Build Docker images
+make docker-single          # Run single-node Docker setup
+make docker-multi           # Run multi-node Docker setup  
+make docker-logs            # View Docker logs
+make docker-stop            # Stop Docker containers
+make docker-clean           # Clean Docker resources
+```
+
+### Vagrant Commands
+```bash
+make vagrant-up             # Start Vagrant VMs
+make vagrant-test           # Test Vagrant setup
+make vagrant-logs           # View Vagrant logs
+make vagrant-status         # Check VM status
+make vagrant-destroy        # Destroy Vagrant VMs
+```
+
+## Docker Build Guidelines
+
+### Multi-stage Builds
+- Use `golang:1.21-alpine` for building stage
+- Use `alpine:latest` for runtime stage
+- Copy pre-built eBPF objects, don't compile in container
+- Include proper health checks
+
+### eBPF Requirements
+For traffic-pump containers:
+- Use `--privileged` flag (required for eBPF)
+- Use `--pid=host` to see host processes
+- Mount essential directories:
+  - `/sys/fs/bpf:/sys/fs/bpf:rw`
+  - `/sys/kernel/debug:/sys/kernel/debug:ro`
+  - `/sys/kernel/tracing:/sys/kernel/tracing:ro`
+
+### Network Configuration
+- Use custom bridge networks (172.20.0.0/24)
+- Assign static IPs for predictable networking
+- Configure proper DNS resolution
+
+## Development Workflow
+
+### Before Major Changes
+1. Always run `make clean` before major changes
+2. Test with `make dev-start` before Docker deployment
+3. Use `make help` to see available commands
+4. Check logs with `make dev-logs` or `docker-compose logs`
+
+### Build Order
+1. **Protocol Buffers**: Generate `.pb.go` files first
+2. **eBPF Program**: Compile C code to `.o` object
+3. **Go Applications**: Build traffic-pump and traffic-sink
+4. **Docker Images**: Build containers with pre-compiled artifacts
+
+### Validation Steps
+- Validate struct alignment with `unsafe.Sizeof()`
+- Test eBPF program attachment
+- Verify gRPC connectivity
+- Check protobuf serialization/deserialization
+
+## Common Build Issues
+
+### eBPF Compilation
+- **"Program too large"**: Reduce complexity, use static inline functions
+- **"Invalid argument"**: Check struct alignment and BTF compatibility
+- **Missing headers**: Use minimal header approach
+
+### Go Build Issues
+- **Protobuf version conflicts**: Pin versions in go.mod
+- **gRPC compatibility**: Use compatible versions (check go.sum)
+- **Struct alignment errors**: Validate with `unsafe.Sizeof()`
+
+### Docker Build Failures
+- **eBPF compilation in Alpine**: Pre-compile on host, copy to container
+- **Permission issues**: Ensure proper user permissions in container
+- **Missing dependencies**: Install all required packages in Dockerfile
+# Build Process & Automation
+
+## Build Process Overview
+
+### eBPF Compilation
+1. **eBPF compilation**: `clang -target bpf -O2 -g -c traffic_pump.c`
+2. **Go compilation**: Standard `go build` with proper flags
+3. **Use Makefile targets**: `make build`, `make dev-start`, `make docker-build`
+4. **Pre-build eBPF** before Docker to avoid Alpine compatibility issues
+
+### Build Dependencies
+- **clang**: For eBPF compilation
+- **protobuf-compiler**: For protobuf generation
+- **Go 1.21+**: For application compilation
+- **Docker**: For containerized builds
+
+## Makefile Usage
+
+### Development Commands
+```bash
+make help                    # Show all available commands
+make build                   # Build everything (eBPF + Go)
+make clean                   # Clean build artifacts
+make proto                   # Generate protobuf files
+make build-bpf              # Compile eBPF program only
+```
+
+### Development Environment
+```bash
+make dev-start              # Start development environment (native)
+make dev-logs               # View development logs
+make dev-stop               # Stop development environment
+```
+
+### Docker Commands
+```bash
+make docker-build           # Build Docker images
+make docker-single          # Run single-node Docker setup
+make docker-multi           # Run multi-node Docker setup  
+make docker-logs            # View Docker logs
+make docker-stop            # Stop Docker containers
+make docker-clean           # Clean Docker resources
+```
+
+### Vagrant Commands
+```bash
+make vagrant-up             # Start Vagrant VMs
+make vagrant-test           # Test Vagrant setup
+make vagrant-logs           # View Vagrant logs
+make vagrant-status         # Check VM status
+make vagrant-destroy        # Destroy Vagrant VMs
+```
+
+## Docker Build Guidelines
+
+### Multi-stage Builds
+- Use `golang:1.21-alpine` for building stage
+- Use `alpine:latest` for runtime stage
+- Copy pre-built eBPF objects, don't compile in container
+- Include proper health checks
+
+### eBPF Requirements
+For traffic-pump containers:
+- Use `--privileged` flag (required for eBPF)
+- Use `--pid=host` to see host processes
+- Mount essential directories:
+  - `/sys/fs/bpf:/sys/fs/bpf:rw`
+  - `/sys/kernel/debug:/sys/kernel/debug:ro`
+  - `/sys/kernel/tracing:/sys/kernel/tracing:ro`
+
+### Network Configuration
+- Use custom bridge networks (172.20.0.0/24)
+- Assign static IPs for predictable networking
+- Configure proper DNS resolution
+
+## Development Workflow
+
+### Before Major Changes
+1. Always run `make clean` before major changes
+2. Test with `make dev-start` before Docker deployment
+3. Use `make help` to see available commands
+4. Check logs with `make dev-logs` or `docker-compose logs`
+
+### Build Order
+1. **Protocol Buffers**: Generate `.pb.go` files first
+2. **eBPF Program**: Compile C code to `.o` object
+3. **Go Applications**: Build traffic-pump and traffic-sink
+4. **Docker Images**: Build containers with pre-compiled artifacts
+
+### Validation Steps
+- Validate struct alignment with `unsafe.Sizeof()`
+- Test eBPF program attachment
+- Verify gRPC connectivity
+- Check protobuf serialization/deserialization
+
+## Common Build Issues
+
+### eBPF Compilation
+- **"Program too large"**: Reduce complexity, use static inline functions
+- **"Invalid argument"**: Check struct alignment and BTF compatibility
+- **Missing headers**: Use minimal header approach
+
+### Go Build Issues
+- **Protobuf version conflicts**: Pin versions in go.mod
+- **gRPC compatibility**: Use compatible versions (check go.sum)
+- **Struct alignment errors**: Validate with `unsafe.Sizeof()`
+
+### Docker Build Failures
+- **eBPF compilation in Alpine**: Pre-compile on host, copy to container
+- **Permission issues**: Ensure proper user permissions in container
+- **Missing dependencies**: Install all required packages in Dockerfile

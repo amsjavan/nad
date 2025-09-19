@@ -1,0 +1,156 @@
+---
+description: Common issues, error solutions, and debugging techniques for NAD components
+alwaysApply: false
+---
+
+# Troubleshooting Guide
+
+## eBPF Common Issues
+
+### Program Loading Issues
+**Error**: "Program too large"
+- **Solution**: Reduce complexity, use static inline functions
+- **Prevention**: Keep eBPF programs minimal and efficient
+
+**Error**: "Invalid argument" during program load
+- **Solution**: Check struct alignment and BTF compatibility
+- **Debug**: Verify C struct matches Go struct exactly
+- **Check**: Ensure proper field ordering and padding
+
+**Error**: "Permission denied" for eBPF operations
+- **Solution**: Ensure CAP_BPF capability or run with sudo
+- **Docker**: Use `--privileged` flag for containers
+- **Check**: Verify eBPF kernel support is enabled
+
+### Data Capture Issues
+**Problem**: Missing syscall data
+- **Solution**: Use `bpf_probe_read_user()` for userspace data
+- **Check**: Validate pointer before dereferencing
+- **Debug**: Add bounds checking before memory access
+
+**Problem**: Incorrect network data
+- **Solution**: Verify byte order conversion (ntohl/ntohs)
+- **Check**: Ensure sockaddr_in extraction is correct
+- **Debug**: Test with known IP/port combinations
+
+## Go Build & Runtime Issues
+
+### Protobuf Issues
+**Error**: `protoc-gen-go: program not found`
+- **Solution**: Install protoc-gen-go and ensure it's in PATH
+- **Fix**: `go install google.golang.org/protobuf/cmd/protoc-gen-go@latest`
+
+**Error**: "non-contiguous repeated field" panic
+- **Solution**: Fix `go_package` option in .proto file
+- **Correct**: Use `go_package = "./proto"`
+
+**Error**: Protobuf version conflicts
+- **Solution**: Pin versions in go.mod
+- **Check**: Verify compatible gRPC versions in go.sum
+
+### Struct Alignment Errors
+**Error**: "unsafe.Sizeof() mismatch"
+- **Solution**: Validate struct alignment between C and Go
+- **Debug**: Print struct sizes in both languages
+- **Fix**: Adjust field order and padding as needed
+
+### gRPC Connection Issues
+**Error**: gRPC connection failures
+- **Solution**: Check network connectivity and service discovery
+- **Docker**: Verify custom bridge network configuration
+- **Debug**: Use `nc -z` to test port connectivity
+
+## Docker Deployment Issues
+
+### eBPF in Containers
+**Problem**: eBPF programs not attaching
+- **Solution**: Add required volume mounts:
+  - `/sys/fs/bpf:/sys/fs/bpf:rw`
+  - `/sys/kernel/debug:/sys/kernel/debug:ro`
+  - `/sys/kernel/tracing:/sys/kernel/tracing:ro`
+- **Flags**: Use `--privileged` and `--pid=host`
+
+**Error**: "neither debugfs nor tracefs are mounted"
+- **Solution**: Mount required filesystems in container
+- **Check**: Verify host system has debugfs/tracefs available
+
+### Build Failures
+**Problem**: eBPF compilation fails in Alpine container
+- **Solution**: Pre-compile eBPF on host, copy .o file to container
+- **Process**: Build eBPF outside Docker, include in image
+
+**Error**: Go version compatibility issues
+- **Solution**: Update Dockerfile to use compatible Go version
+- **Check**: Ensure go.mod version matches Docker Go version
+
+### Network Issues
+**Problem**: Container-to-container communication fails
+- **Solution**: Use custom bridge networks with static IPs
+- **Configuration**: Define network in docker-compose.yml
+- **Debug**: Check Docker network configuration
+
+## Vagrant Environment Issues
+
+### VM Creation Problems
+**Error**: VirtualBox network interface issues
+- **Solution**: Use forwarded ports instead of private network
+- **Alternative**: Restart VirtualBox service
+- **Fix**: `sudo systemctl restart vboxdrv`
+
+**Error**: "Network is unreachable" during provisioning
+- **Solution**: Check host network connectivity
+- **Workaround**: Use offline provisioning with pre-built images
+
+### Service Issues
+**Problem**: NAD services not starting in VMs
+- **Solution**: Check systemd service definitions
+- **Debug**: Use `journalctl -u service-name -f`
+- **Fix**: Verify Docker installation in VMs
+
+## Performance Issues
+
+### High Memory Usage
+- **Monitor**: Check for memory leaks in long-running processes
+- **Solution**: Implement proper cleanup in event processing
+- **Debug**: Use memory profiling tools
+
+### Low Event Capture Rate
+- **Check**: eBPF program efficiency
+- **Solution**: Optimize event processing and batching
+- **Monitor**: Ring buffer utilization
+
+### gRPC Streaming Issues
+- **Problem**: Stream disconnections
+- **Solution**: Implement proper reconnection logic
+- **Monitor**: Connection health and retry mechanisms
+
+## Debugging Techniques
+
+### eBPF Debugging
+- Use `bpf_printk()` for kernel-space debugging
+- Check `/sys/kernel/debug/tracing/trace_pipe`
+- Verify program statistics in `/sys/fs/bpf/`
+
+### Go Application Debugging
+- Use structured logging extensively
+- Implement health check endpoints
+- Monitor gRPC connection status
+
+### Network Debugging
+- Use `tcpdump` to capture actual network traffic
+- Compare with eBPF captured events
+- Verify IP/port extraction accuracy
+
+### Container Debugging
+- Use `docker exec` to inspect running containers
+- Check container logs with `docker logs`
+- Verify volume mounts and permissions
+
+## General Debugging Workflow
+
+1. **Identify the layer**: eBPF, Go application, Docker, or networking
+2. **Check logs**: Start with structured logs and error messages
+3. **Verify configuration**: Ensure all settings are correct
+4. **Test incrementally**: Start with simple cases and build up
+5. **Use monitoring tools**: Monitor system resources and performance
+6. **Compare with working state**: If it worked before, identify what changed

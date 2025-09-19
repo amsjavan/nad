@@ -1,0 +1,94 @@
+---
+description: eBPF and Go development guidelines, best practices, and coding standards
+alwaysApply: false
+---
+
+# Development Guidelines
+
+## eBPF Code Guidelines (C)
+
+### Header Management
+- Use **minimal header approach** - avoid system includes
+- Define types manually: `__u8`, `__u16`, `__u32`, `__u64`
+- Always include GPL license: `char _license[] = "GPL";`
+- Use `SEC()` macros for section definitions
+
+### eBPF Best Practices
+- Use **ring buffer** for kernel-to-userspace communication
+- Handle byte order conversion with: `bpf_ntohl()`, `bpf_ntohs()`
+- Use `static inline` functions for helpers
+- Proper bounds checking before memory access
+- Use BPF helper functions only (no standard C library)
+
+### Syscall Attachments
+Attach to these specific syscalls:
+- `tracepoint/syscalls/sys_enter_connect`
+- `tracepoint/syscalls/sys_enter_accept`
+- `tracepoint/syscalls/sys_enter_accept4`
+- `kprobe/tcp_v4_connect`
+
+### Memory Access Patterns
+- Use `bpf_probe_read_user()` for userspace data
+- Validate pointers before dereferencing
+- Extract `sockaddr_in` structure carefully
+- Handle IPv4 only (for now)
+
+## Go Code Guidelines
+
+### Struct Alignment (CRITICAL)
+- **Struct field alignment with eBPF C structs is CRITICAL**
+- Use `unsafe.Sizeof()` to validate struct compatibility
+- Match field order exactly between C and Go structs
+- Pay attention to padding and alignment
+
+### gRPC Patterns
+- Batch events before sending over gRPC (default: 50 events)
+- Use **streaming gRPC** for better performance (not unary)
+- Handle context cancellation properly for gRPC streams
+- Convert network byte order in userspace, not kernel
+
+### Error Handling
+- Always check and log errors appropriately
+- Use structured logging with emojis: `log.Printf("🌐 %s | %s:%d → %s:%d", ...)`
+- Define syscall IDs and network constants clearly
+- Validate protobuf field mappings
+
+### Performance Patterns
+- Pre-allocate buffers where possible
+- Batch operations for efficiency
+- Use proper context handling for cleanup
+- Monitor memory usage in long-running processes
+
+## Protocol Buffer Guidelines
+
+### Field Definitions
+- Use `go_package = "./proto"` to avoid nested directory issues
+- Keep message fields simple and aligned with eBPF data
+- Use `uint32` for IPs (converted from network byte order)
+- Use `uint32` for ports (converted from network byte order)
+
+### Naming Conventions
+- Clear field naming: `saddr`, `daddr`, `sport`, `dport`
+- Use appropriate data types: `uint32` for network data
+- Include node identification for multi-node setups
+- Add version comments and field descriptions
+
+## Code Style Rules
+
+### Go Style
+- Use structured logging with emojis for visual clarity
+- Error handling: Always check and log errors appropriately
+- Context handling: Use proper context cancellation for gRPC streams
+- Constants: Define syscall IDs and network constants clearly
+
+### C (eBPF) Style
+- Static inline functions for byte order conversion
+- Proper bounds checking before memory access
+- Use BPF helper functions only (no standard C library)
+- Comment complex logic, especially network data extraction
+
+### General Guidelines
+- Include comprehensive error messages
+- Use descriptive variable names
+- Comment non-obvious code sections
+- Follow consistent indentation and formatting
