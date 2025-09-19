@@ -254,6 +254,101 @@ tail -f sink.log pump.log
 ✅ **System processes** (systemd-resolve, Chrome, cursor, v2ray, etc.)  
 ✅ **Network ranges** (10.x.x.x, 192.168.x.x, 172.16-31.x.x detection)
 
+---
+
+## 🧪 Multi-Node Testing Environments
+
+### Vagrant Testing Environment (Recommended)
+
+Test NAD in a realistic multi-VM environment with proper network isolation:
+
+**🏗️ Setup:**
+```bash
+# Start all VMs (takes 10-15 minutes first time)
+./test-vagrant.sh up
+
+# Run complete automated test
+./test-vagrant.sh full-test
+```
+
+**🌐 Architecture:**
+- `nad-sink` (192.168.56.10) - Traffic sink server
+- `nad-pump1` (192.168.56.11) - Traffic pump agent 1  
+- `nad-pump2` (192.168.56.12) - Traffic pump agent 2
+
+**🚀 Available Commands:**
+```bash
+./test-vagrant.sh help                # Show all commands
+./test-vagrant.sh up                  # Start VMs
+./test-vagrant.sh start-services      # Start NAD services
+./test-vagrant.sh generate-traffic    # Generate test traffic  
+./test-vagrant.sh check-logs          # View logs
+./test-vagrant.sh status              # Show status
+./test-vagrant.sh destroy             # Clean up
+```
+
+**🧪 Manual Testing:**
+```bash
+# Connect to VMs
+vagrant ssh nad-sink
+vagrant ssh nad-pump1
+vagrant ssh nad-pump2
+
+# Start services manually
+sudo systemctl start nad-sink
+sudo systemctl start nad-pump1
+sudo systemctl start nad-pump2
+
+# Generate traffic from pump VMs
+curl google.com
+ping 192.168.56.12
+nslookup github.com
+
+# View live logs
+sudo journalctl -u nad-sink -f
+```
+
+**✅ What Gets Tested:**
+- ✅ Real inter-VM network communication
+- ✅ Correct source/destination IPs (192.168.56.x)  
+- ✅ Process names and PIDs
+- ✅ Multiple pump agents reporting to single sink
+- ✅ DNS queries, HTTP/HTTPS connections
+- ✅ Systemd service management
+
+---
+
+### Docker Multi-Node Testing
+
+Quick containerized testing environment:
+
+**🐳 Setup:**
+```bash
+# Build and start all services
+docker-compose -f docker-compose.test.yml up -d
+
+# Generate test traffic
+docker exec nad-test-client /test-traffic.sh
+
+# View logs
+docker logs nad-sink-docker
+docker logs nad-pump1-docker
+docker logs nad-pump2-docker
+```
+
+**🌐 Network:** 172.20.0.0/24
+- `nad-sink` (172.20.0.10:9090)
+- `nad-pump1` (172.20.0.11) 
+- `nad-pump2` (172.20.0.12)
+- `test-client` (172.20.0.20)
+
+**🧹 Cleanup:**
+```bash
+docker-compose -f docker-compose.test.yml down
+```
+
+---
+
 ### Troubleshooting
 
 **Q: Source IP shows `0.0.0.0:0`?**

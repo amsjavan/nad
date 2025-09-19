@@ -69,6 +69,28 @@ Thumbs.db
 
 # Docker artifacts
 .dockerignore
+*-image.tar
+*.tar
+
+# Vagrant artifacts
+.vagrant/
+*.box
+.vagrant.d/
+vagrant_*
+.vscode-server/
+ubuntu-*-console.log
+
+# Deployment artifacts
+deploy/*/logs/
+deploy/*/*.log
+*.pid
+*.sock
+
+# NAD specific artifacts
+traffic-*-image.tar
+nad-*.tar
+*.bpf
+core.*
 
 # Environment files
 .env

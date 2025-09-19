@@ -1,0 +1,121 @@
+version: '3.8'
+
+# NAD (Network Activity Detector) - Docker Compose
+# Simple unified configuration for all deployment scenarios
+
+services:
+  # Traffic Sink (Central Server) - Always runs
+  traffic-sink:
+    build:
+      context: ../../
+      dockerfile: traffic-sink/Dockerfile
+    container_name: nad-sink
+    hostname: nad-sink
+    ports:
+      - "${SINK_PORT:-9090}:9090"
+    environment:
+      - LISTEN_ADDRESS=:9090
+    networks:
+      nad-network:
+        ipv4_address: 172.20.0.10
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "9090"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Traffic Pump (Single Agent) - Default profile
+  traffic-pump:
+    build:
+      context: ../../
+      dockerfile: traffic-pump/Dockerfile
+    container_name: nad-pump
+    hostname: nad-pump
+    privileged: true
+    pid: "host"
+    volumes:
+      - /sys/fs/bpf:/sys/fs/bpf:rw
+      - /sys/kernel/debug:/sys/kernel/debug:ro
+      - /sys/kernel/tracing:/sys/kernel/tracing:ro
+    environment:
+      - NODE_ID=${NODE_ID:-nad-single}
+      - SINK_ADDRESS=172.20.0.10:9090
+      - BPF_OBJECT=/app/traffic_pump.o
+    networks:
+      nad-network:
+        ipv4_address: 172.20.0.11
+    depends_on:
+      - traffic-sink
+    restart: unless-stopped
+    profiles: ["", "single"]  # Default profile
+
+  # Multi-node setup (activated with --profile multi)
+  traffic-pump1:
+    build:
+      context: ../../
+      dockerfile: traffic-pump/Dockerfile
+    container_name: nad-pump1
+    hostname: nad-pump1
+    privileged: true
+    pid: "host"
+    volumes:
+      - /sys/fs/bpf:/sys/fs/bpf:rw
+      - /sys/kernel/debug:/sys/kernel/debug:ro
+      - /sys/kernel/tracing:/sys/kernel/tracing:ro
+    environment:
+      - NODE_ID=nad-pump1
+      - SINK_ADDRESS=172.20.0.10:9090
+      - BPF_OBJECT=/app/traffic_pump.o
+    networks:
+      nad-network:
+        ipv4_address: 172.20.0.21
+    depends_on:
+      - traffic-sink
+    restart: unless-stopped
+    profiles: ["multi"]
+
+  traffic-pump2:
+    build:
+      context: ../../
+      dockerfile: traffic-pump/Dockerfile
+    container_name: nad-pump2
+    hostname: nad-pump2
+    privileged: true
+    pid: "host"
+    volumes:
+      - /sys/fs/bpf:/sys/fs/bpf:rw
+      - /sys/kernel/debug:/sys/kernel/debug:ro
+      - /sys/kernel/tracing:/sys/kernel/tracing:ro
+    environment:
+      - NODE_ID=nad-pump2
+      - SINK_ADDRESS=172.20.0.10:9090
+      - BPF_OBJECT=/app/traffic_pump.o
+    networks:
+      nad-network:
+        ipv4_address: 172.20.0.22
+    depends_on:
+      - traffic-sink
+    restart: unless-stopped
+    profiles: ["multi"]
+
+  # Test client (only for multi-node testing)
+  test-client:
+    image: alpine:latest
+    container_name: nad-test-client
+    hostname: test-client
+    command: sh -c "apk add --no-cache curl netcat-openbsd && echo '🧪 Test client ready!' && echo 'Generate test traffic' && sleep infinity"
+    networks:
+      nad-network:
+        ipv4_address: 172.20.0.30
+    depends_on:
+      - traffic-sink
+    restart: unless-stopped
+    profiles: ["multi"]
+
+networks:
+  nad-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24

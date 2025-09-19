@@ -97,56 +97,79 @@ dev-logs-pump: ## View traffic-pump logs
 
 ##@ Docker Deployment
 
-docker-pump: build-bpf ## Build traffic-pump Docker image
-	docker build -f traffic-pump/Dockerfile -t traffic-pump:latest .
+docker-build: build-bpf ## Build all Docker images
+	@echo "🔨 Building Docker images..."
+	@docker build -f traffic-pump/Dockerfile -t traffic-pump:latest .
+	@docker build -f traffic-sink/Dockerfile -t traffic-sink:latest .
+	@echo "✅ Docker images built"
 
-docker-sink: ## Build traffic-sink Docker image
-	docker build -f traffic-sink/Dockerfile -t traffic-sink:latest .
+docker-single: docker-build ## Start single pump setup
+	@echo "🚀 Starting single pump setup..."
+	@cd deploy/docker && docker-compose up -d
+	@echo "✅ NAD running: http://localhost:9090"
+	@echo "📊 Logs: make docker-logs"
 
-docker: docker-pump docker-sink ## Build both Docker images
+docker-multi: docker-build ## Start multi-pump test setup  
+	@echo "🚀 Starting multi-pump test setup..."
+	@cd deploy/docker && docker-compose --profile multi up -d
+	@echo "✅ Multi-node NAD running with test client"
+	@echo "📊 Logs: make docker-logs"
 
-docker-test: docker-test-sink ## Start complete Docker test environment
-	@sleep 2
-	@$(MAKE) docker-test-pump
-	@echo "🚀 Docker test environment started!"
-	@echo "📊 View sink logs: make docker-logs-sink"
-	@echo "🔍 View pump logs: make docker-logs-pump"
+docker-logs: ## View logs from all containers
+	@echo "=== Sink Logs ==="
+	@docker logs nad-sink --tail 10 2>/dev/null || echo "Sink not running"
+	@echo ""
+	@echo "=== Pump Logs ==="
+	@docker logs nad-pump --tail 10 2>/dev/null || docker logs nad-pump1 --tail 5 2>/dev/null || echo "No pump running"
+	@docker logs nad-pump2 --tail 5 2>/dev/null || echo ""
 
-docker-test-sink: docker-sink docker-test-network ## Start traffic-sink container
-	@echo "Starting traffic-sink container..."
-	@docker stop nad-sink 2>/dev/null || true
-	@docker rm nad-sink 2>/dev/null || true
-	docker run -d --name nad-sink --network nad-test -p 9090:9090 traffic-sink:latest
+docker-stop: ## Stop all NAD containers
+	@echo "🛑 Stopping NAD containers..."
+	@cd deploy/docker && docker-compose down 2>/dev/null || true
+	@cd deploy/docker && docker-compose --profile multi down 2>/dev/null || true
+	@echo "✅ Stopped"
 
-docker-test-pump: docker-pump docker-test-network ## Start traffic-pump container (requires privileged mode)
-	@echo "Starting traffic-pump container..."
-	@docker stop nad-pump 2>/dev/null || true
-	@docker rm nad-pump 2>/dev/null || true
-	docker run -d --name nad-pump --network nad-test --privileged --pid host \
-		-v /sys/fs/bpf:/sys/fs/bpf:rw \
-		-v /sys/kernel/debug:/sys/kernel/debug:ro \
-		-v /sys/kernel/tracing:/sys/kernel/tracing:ro \
-		-e NODE_ID="test-node" \
-		-e SINK_ADDRESS="nad-sink:9090" \
-		traffic-pump:latest
+docker-clean: docker-stop ## Clean Docker environment
+	@docker system prune -f
+	@echo "🧹 Docker cleaned"
 
-docker-logs-sink: ## View traffic-sink container logs
-	docker logs nad-sink
+docker-save: docker-build ## Save Docker images for Vagrant
+	@echo "💾 Saving Docker images..."
+	@docker save traffic-sink:latest -o traffic-sink-image.tar
+	@docker save traffic-pump:latest -o traffic-pump-image.tar
+	@echo "✅ Images saved to *.tar files"
 
-docker-logs-pump: ## View traffic-pump container logs
-	docker logs nad-pump
+##@ Vagrant Testing
 
-docker-stop: ## Stop Docker test containers
-	@docker stop nad-pump nad-sink 2>/dev/null || true
-	@docker rm nad-pump nad-sink 2>/dev/null || true
-	@echo "🛑 Docker test environment stopped"
+vagrant-up: ## Start Vagrant VMs (3 VMs with Docker)
+	@echo "🚀 Starting Vagrant environment..."
+	@make docker-save  # Save images for VMs
+	@cd deploy/vagrant && vagrant up
+	@echo "✅ Vagrant VMs running"
+	@echo "🌐 Sink: http://localhost:39090"
 
-docker-clean: docker-stop ## Clean up Docker test environment
-	@docker network rm nad-test 2>/dev/null || true
-	@echo "🧹 Docker test environment cleaned"
+vagrant-logs: ## View logs from Vagrant VMs
+	@echo "=== Sink VM ==="
+	@cd deploy/vagrant && vagrant ssh sink -c "docker logs nad-sink --tail 10" 2>/dev/null || true
+	@echo ""
+	@echo "=== Pump1 VM ==="  
+	@cd deploy/vagrant && vagrant ssh pump1 -c "docker logs nad-pump --tail 5" 2>/dev/null || true
+	@echo "=== Pump2 VM ==="
+	@cd deploy/vagrant && vagrant ssh pump2 -c "docker logs nad-pump --tail 5" 2>/dev/null || true
 
-docker-test-network: ## Create Docker test network
-	@docker network ls | grep nad-test || docker network create nad-test
+vagrant-test: ## Generate test traffic in Vagrant VMs
+	@echo "🧪 Generating test traffic..."
+	@cd deploy/vagrant && vagrant ssh pump1 -c "curl -s google.com > /dev/null & nslookup github.com > /dev/null"
+	@cd deploy/vagrant && vagrant ssh pump2 -c "curl -s example.com > /dev/null & ping -c 2 8.8.8.8 > /dev/null"
+	@sleep 5
+	@$(MAKE) vagrant-logs
+
+vagrant-status: ## Show Vagrant VM status
+	@cd deploy/vagrant && vagrant status
+
+vagrant-destroy: ## Destroy Vagrant VMs
+	@cd deploy/vagrant && vagrant destroy -f
+	@echo "🧹 Vagrant VMs destroyed"
 
 ##@ Cleanup
 

@@ -1,0 +1,64 @@
+# -*- mode: ruby -*-
+# vi: set ft=ruby :
+
+# NAD Vagrant Environment - Simplified
+# 3 VMs: 1 sink + 2 pumps, all Docker-based
+
+Vagrant.configure("2") do |config|
+  config.vm.box = "ubuntu/jammy64"
+  
+  # Sync project folder
+  config.vm.synced_folder "../../", "/home/vagrant/nad", type: "rsync"
+  
+  # Common Docker setup
+  $setup_docker = <<-SCRIPT
+    # Install Docker
+    curl -fsSL https://get.docker.com | sh
+    usermod -aG docker vagrant
+    systemctl enable docker
+    systemctl start docker
+    
+    # Load pre-built images if available
+    cd /home/vagrant/nad
+    [ -f traffic-sink-image.tar ] && docker load -i traffic-sink-image.tar
+    [ -f traffic-pump-image.tar ] && docker load -i traffic-pump-image.tar
+    
+    echo "✅ Docker setup complete"
+  SCRIPT
+
+  # Sink VM
+  config.vm.define "sink" do |sink|
+    sink.vm.hostname = "nad-sink"
+    sink.vm.network "forwarded_port", guest: 9090, host: 39090
+    sink.vm.provision "shell", inline: $setup_docker
+    sink.vm.provision "shell", inline: <<-SCRIPT
+      cd /home/vagrant/nad/deploy/docker
+      sudo -u vagrant docker-compose up -d traffic-sink
+      echo "🚀 Sink started on port 39090"
+    SCRIPT
+  end
+  
+  # Pump1 VM
+  config.vm.define "pump1" do |pump1|
+    pump1.vm.hostname = "nad-pump1"
+    pump1.vm.provision "shell", inline: $setup_docker
+    pump1.vm.provision "shell", inline: <<-SCRIPT
+      cd /home/vagrant/nad/deploy/docker
+      NODE_ID=vagrant-pump1 SINK_ADDRESS=10.0.2.2:39090 \\
+        sudo -u vagrant docker-compose up -d traffic-pump
+      echo "🚀 Pump1 started, connecting to host:39090"
+    SCRIPT
+  end
+  
+  # Pump2 VM  
+  config.vm.define "pump2" do |pump2|
+    pump2.vm.hostname = "nad-pump2"
+    pump2.vm.provision "shell", inline: $setup_docker
+    pump2.vm.provision "shell", inline: <<-SCRIPT
+      cd /home/vagrant/nad/deploy/docker
+      NODE_ID=vagrant-pump2 SINK_ADDRESS=10.0.2.2:39090 \\
+        sudo -u vagrant docker-compose up -d traffic-pump
+      echo "🚀 Pump2 started, connecting to host:39090"
+    SCRIPT
+  end
+end
